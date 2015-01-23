@@ -5,20 +5,46 @@ message: 	.asciiz		"Defend the east coast"
 encrypted:	.space		128
 decrypted:	.space		128
 
-.code
+.text
 
 main:
 
+	la 		$a0, message
+	jal 	len
+
+
+# Use to calculate the length of a string
+#
+# Args:		Base address of a null terminated string to be encrypted in $a0
+# 			Return address to be present in return register
+# Return: 	Length of the string in $v0
+
+len:
 	
+	li 		$t0, 0						# t0 shall hold the length
+	
+	len_loop:
+
+		add 	$t1, $a0, $t0 			# t1 shall hold the new address after adding the offset.
+		lb		$t2, 0($t1)				# load next character
+		beq		$t2, $0, len_return		# If it is null, go to return label
+		addi 	$t0, $t0, 1 			# incrememnt the length variable
+		j		len_loop
+
+
+	len_return:
+
+		move 	$v0, $t0				# Place the length into the register
+		jr		$31						# Jump to the value of the register
 
 # Encrypts given message using the railfence algorithm
 #
 # Args: 	Base address of the string to be encrypted in $a0
 #			Encryption key (number of rows) in $a1
-#			Return address to be present on top of stack
+#			Return address to be present in return register
 #
 # Return:	Base address of encrypted message in $v0
-#
+
 encrypt_railfence:
 
 #	Consider the following example with a 9 character string
@@ -46,6 +72,10 @@ encrypt_railfence:
 #	$s1		length of message
 #	$t0		encryption key
 #	$t1		current offset to base address
-
-mov $s0, $a0		# Move the base address to a different register
-mov 
+	
+	# Call for length function
+	addi 	$sp, $sp -4				# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	len 					# Call function
+	
+	move 	$s0, $a0				# Move the base address to a different register
