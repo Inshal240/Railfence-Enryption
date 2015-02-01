@@ -11,7 +11,12 @@ main:
 
 	la 		$a0, message
 	li 		$a1, 5
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
 	jal 	encrypt_railfence
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+	jr 		$31
 
 
 # Use to calculate the length of a string
@@ -36,7 +41,7 @@ len:
 
 
 	len_return:
-
+		#addi 	$t0, $t0, -1 			# decrememnt the length variable
 		move 	$v0, $t0				# Place the length into the register
 		jr		$31						# Jump to the value of the register
 
@@ -128,11 +133,12 @@ encrypt_railfence:
 	# Encryption of one section of the message
 	encrypt_railfence_row:
 
-		# if the accumulation of the offsets is greater than the
-		# length of the string, then we're done for this row
-		slt 	$t6, $s1, $t4
-		bne 	$t6, $00, encrypt_railfence_done
-
+		# If the accumulation of the offsets is greater than the
+		# length of the string, then we're done for this row.
+		# If accumulation is not less than the total length then branch
+		slt 	$t6, $t4, $s1			
+		bne 	$t6, $t7, encrypt_railfence_done
+		
 		# Fetch character from message
 		lb		$t6, 0($t1)
 
