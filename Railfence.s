@@ -2,6 +2,7 @@
 
 railfence: 	.space 		1096
 message: 	.asciiz		"Defend the east coast"
+linefeed: 	.asciiz		"\n"
 encrypted:	.space		128
 decrypted:	.space		128
 
@@ -10,14 +11,55 @@ decrypted:	.space		128
 main:
 
 	la 		$a0, message
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	printline
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+
+	la 		$a0, message
 	li 		$a1, 5
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
 	jal 	encrypt_railfence
 	lw		$31, 0($sp)				# Load address from the stack
 	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+
+	la 		$a0, encrypted
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	printline
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+
+	la 		$a0, encrypted
+	li 		$a1, 5
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	decrypt_railfence
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+	
+	move 	$a0, $v0
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	printline
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4
+
 	jr 		$31
 
+
+printline:
+	
+	li 		$v0, 4
+	syscall
+
+	la 		$a0, linefeed
+	li 		$v0, 4
+	syscall
+
+	jr 		$31
 
 # Use to calculate the length of a string
 #
@@ -136,7 +178,8 @@ encrypt_railfence:
 		# If the accumulation of the offsets is greater than the
 		# length of the string, then we're done for this row.
 		# If accumulation is not less than the total length then branch
-		slt 	$t6, $t4, $s1			
+		slt 	$t6, $t4, $s1
+		li 		$t7, 1	
 		bne 	$t6, $t7, encrypt_railfence_done
 		
 		# Fetch character from message
@@ -149,11 +192,11 @@ encrypt_railfence:
 		# Calulate offset for next character
 		
 		# Case for last row
-		beq		$t3, $t5, after_cond 	# current offset == max offset
+		beq		$t3, $t5, encrypt_railfence_after_cond 	# current offset == max offset
 		sub		$t3, $t5, $t3			# current offset = max offset - current offset
 			
 		# After if-else condition
-		after_cond:
+		encrypt_railfence_after_cond:
 		add 	$t1, $t1, $t3			# add current offset to current address
 
 		add 	$t4, $t4, $t3			# add the offset to the offset accumulation
@@ -164,7 +207,7 @@ encrypt_railfence:
 	encrypt_railfence_done:
 
 		# Check to see if it was the last row
-		beq 	$t8, $t0, last_row
+		beq 	$t8, $t0, encrypt_railfence_last_row
 
 		# Increment the starting character offset
 		addi 	$t2, $t2, 1
@@ -184,23 +227,147 @@ encrypt_railfence:
 
 		sub 	$t3, $t5, $t6			# current offset = max offset - 2*(current row - 1)
 
-		bne 	$t3, $00, offset_not_zero
+		bne 	$t3, $00, encrypt_railfence_offset_not_zero
 		move 	$t3, $t5				# if offset is zero, then we use max offset
 
-		
-		offset_not_zero:
+		encrypt_railfence_offset_not_zero:
 		sub 	$t3, $t5, $t3			# subtract again so the functin uses the appropriate offset first
 		j 		encrypt_railfence_row
 
-		last_row:
+		encrypt_railfence_last_row:
 			sb		$00, 0($s2)				# add null character to the end of string
 			la 		$v0, encrypted 			# return the starting address of the enrypted message
 			jr 		$31 					# exit function
 			
+# Decrypt given encrypted message using the railfence algorithm
+#
+# Args: 	Base address of the string to be decrypted in $a0
+#			Decryption key (number of rows) in $a1
+#			Return address to be present in return register
+#
+# Return:	Base address of decrypted message in $v0
 
+decrypt_railfence:
 
+#	Register Information:
+#	$s0		base address of the decrypted message
+#	$s1		length of message
+#	$s2		current address of the encrypted message
+#	$t0		decryption key
+#	$t1		current address (calculated result)
+#	$t2		offset of the starting character
+#	$t3		current offset between elements
+#	$t4 	accumulation of all offsets
+#	$t5		max offset
+#	$t6		temporary calculations
+#	$t7		temporary calculations
+# 	$t8		current row number (for first = 1, for last = key)
 
+	move 	$s2, $a0				# Move the base address to a different register
+	la 		$s0, decrypted			# Load address of the reserved memory location
 
+	# Call for length function
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$a1, 0($sp)				# Store decryption key in the stack
+	jal 	len 					# Call function
+	
+	# Restore jump address
+	lw		$t0, 0($sp)				# Load the decryption key from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+	
+	# Store the length in the register
+	move 	$s1, $v0
 
+	# Clear temporary registers
+	li 		$t1, 0
+	li 		$t2, 0
+	li 		$t3, 0
+	li 		$t4, 0
+	li 		$t5, 0
+
+	li 		$t8, 1 					# first row
+
+	# Caluclate the max offset 2*(key - 1)
+	addi 	$t5, $t0, -1 			# key - 1
+	addi 	$t6, $00,  2 			# 2
+	multu 	$t5, $t6 				# 2*(key - 1)
+	mflo	$t5						# fetch multiplication result
+	addi 	$t6, $00,  0 			# clear $t6 register
+
+	# Load address of first character into $t1
+	move 	$t1, $s0
+
+	# The first offset will always be the max offset calculated
+	move 	$t3, $t5
+
+	# Decryption of one section of the message
+	decrypt_railfence_row:
+
+		# If the accumulation of the offsets is greater than the
+		# length of the string, then we're done for this row.
+		# If accumulation is not less than the total length then branch
+		slt 	$t6, $t4, $s1
+		li 		$t7, 1
+		bne 	$t6, $t7, decrypt_railfence_done
+		
+		# Fetch character from message
+		lb		$t6, 0($s2)
+		addi 	$s2, $s2, 1 			# increment address for next byte
+
+		# Append the character to the decryption
+		sb		$t6, 0($t1)
+		
+		# Calulate offset for next character
+		
+		# Case for last row
+		beq		$t3, $t5, decrypt_railfence_after_cond 	# current offset == max offset
+		sub		$t3, $t5, $t3			# current offset = max offset - current offset
+			
+		# After if-else condition
+		decrypt_railfence_after_cond:
+		add 	$t1, $t1, $t3			# add current offset to current address
+
+		add 	$t4, $t4, $t3			# add the offset to the offset accumulation
+
+		# Go back to start of the loop
+		j 		decrypt_railfence_row
+
+	decrypt_railfence_done:
+
+		# Check to see if it was the last row
+		beq 	$t8, $t0, decrypt_railfence_last_row
+
+		# Increment the starting character offset
+		addi 	$t2, $t2, 1
+		move 	$t4, $t2 				# initialize the accumulation of offsets with it
+
+		# Reset the message starting address
+		add 	$t1, $s0, $t2
+
+		# Calculate the next offset ( max offset - 2*(current row - 1) )
+		li 	 	$t6, 2 					# load 2 into the temp register for mult
+		multu 	$t6, $t8				# 2 * (current row - 1) (since the register has 
+										# not yet been updated for the new row)
+
+		mflo 	$t6 					# fetch the multiplication result
+		
+		addi 	$t8, $t8, 1 			# increment row number
+
+		sub 	$t3, $t5, $t6			# current offset = max offset - 2*(current row - 1)
+
+		bne 	$t3, $00, decrypt_railfence_offset_not_zero
+		move 	$t3, $t5				# if offset is zero, then we use max offset
 
 		
+		decrypt_railfence_offset_not_zero:
+		sub 	$t3, $t5, $t3			# subtract again so the functin uses the appropriate offset first
+		j 		decrypt_railfence_row
+
+		decrypt_railfence_last_row:
+			sb		$00, 0($s2)				# add null character to the end of string
+			la 		$v0, decrypted 			# return the starting address of the enrypted message
+			jr 		$31 					# exit function
