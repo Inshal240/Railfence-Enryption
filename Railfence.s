@@ -1,24 +1,63 @@
 .data
 
-railfence: 	.space 		1096
-message: 	.asciiz		"Defend the east coast"
+prompt_string: 		.asciiz		"Please enter string: "
+prompt_rot_key:		.asciiz		"Enter ROT key: "
+prompt_rail_key:	.asciiz		"Enter Railfence key: "
+
+#test: 	.asciiz		"Defend the east coast"
+
 linefeed: 	.asciiz		"\n"
+message: 	.space		128
 encrypted:	.space		128
 decrypted:	.space		128
+
+xor_key: 	.word		4
+rail_key: 	.word		5
 
 .text
 
 main:
 
-	la 		$a0, message
-	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
-	sw		$31, 0($sp)				# Store address in the stack
-	jal 	printline
-	lw		$31, 0($sp)				# Load address from the stack
-	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+	# ============ User Inputs ============= #
+
+	# Print string prompt
+	la 		$a0, prompt_string
+	li 		$v0, 4
+	syscall
+
+	# Get input from user
+	la 		$a0, message				
+	la 		$a1, 128
+	li 		$v0, 8
+	syscall
+
+	# Print ROT key prompt
+	la 		$a0, prompt_rot_key
+	li 		$v0, 4
+	syscall
+
+	# Get input from user
+	li 		$v0, 5
+	syscall
+	la 		$t0, xor_key
+	sw 		$v0, 0($t0)
+
+	# Print Railfence key prompt
+	la 		$a0, prompt_rail_key
+	li 		$v0, 4
+	syscall
+
+	# Get input from user
+	li 		$v0, 5
+	syscall
+	la 		$t0, rail_key
+	sw 		$v0, 0($t0)
+
+	# ======== Railfence Encryption ======== #
 
 	la 		$a0, message
-	li 		$a1, 5
+    la      $t0, rail_key
+    lw      $a1, 0($t0)
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
 	jal 	encrypt_railfence
@@ -32,8 +71,79 @@ main:
 	lw		$31, 0($sp)				# Load address from the stack
 	addi 	$sp, $sp, 4				# Increment stack pointer to free space
 
+	# =========== ROT Encryption =========== #
+
 	la 		$a0, encrypted
-	li 		$a1, 5
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	ROT_encrypt
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+
+	move 	$a0, $v0
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	printline
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+
+	# =========== XOR Encryption =========== #
+
+    la      $a0, encrypted
+    la      $t0, xor_key
+    lw      $a1, 0($t0)
+    addi    $sp, $sp, -4            # Decrement stack pointer to make space
+    sw      $31, 0($sp)             # Store address in the stack
+    jal     XOR_encrypt
+    lw      $31, 0($sp)             # Load address from the stack
+    addi    $sp, $sp, 4             # Increment stack pointer to free space
+
+    move    $a0, $v0
+    addi    $sp, $sp, -4            # Decrement stack pointer to make space
+    sw      $31, 0($sp)             # Store address in the stack
+    jal     printline
+    lw      $31, 0($sp)             # Load address from the stack
+    addi    $sp, $sp, 4             # Increment stack pointer to free space
+
+	# =========== XOR Decryption =========== #
+
+    la      $a0, encrypted
+    la      $t0, xor_key
+    lw      $a1, 0($t0)
+    addi    $sp, $sp, -4            # Decrement stack pointer to make space
+    sw      $31, 0($sp)             # Store address in the stack
+    jal     XOR_decrypt
+    lw      $31, 0($sp)             # Load address from the stack
+    addi    $sp, $sp, 4             # Increment stack pointer to free space
+    
+    move    $a0, $v0
+    addi    $sp, $sp, -4            # Decrement stack pointer to make space
+    sw      $31, 0($sp)             # Store address in the stack
+    jal     printline
+    lw      $31, 0($sp)             # Load address from the stack
+    addi    $sp, $sp, 4
+
+	# =========== ROT Decryption =========== #
+
+	la 		$a0, encrypted
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	ROT_decrypt
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4				# Increment stack pointer to free space
+	
+	move 	$a0, $v0
+	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	sw		$31, 0($sp)				# Store address in the stack
+	jal 	printline
+	lw		$31, 0($sp)				# Load address from the stack
+	addi 	$sp, $sp, 4
+
+    # ======== Railfence Decryption ======== #
+
+	la 		$a0, encrypted
+	la      $t0, rail_key
+	lw      $a1, 0($t0)
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
 	jal 	decrypt_railfence
@@ -49,6 +159,17 @@ main:
 
 	jr 		$31
 
+
+
+# ========================================================================================================= #
+# ============================================= Helper Functions ========================================== #
+# ========================================================================================================= #
+
+# Prints intput string with a linefeed
+#
+# Args: 	Base address of string to be printed in $a0
+#
+# Regs:		$a0, $v0
 
 printline:
 	
@@ -83,9 +204,14 @@ len:
 
 
 	len_return:
-		#addi 	$t0, $t0, -1 			# decrememnt the length variable
 		move 	$v0, $t0				# Place the length into the register
 		jr		$31						# Jump to the value of the register
+
+
+
+# ========================================================================================================= #
+# ============================================== RAILFENCE ENCRYPTION ===================================== #
+# ========================================================================================================= #
 
 # Encrypts given message using the railfence algorithm
 #
@@ -149,6 +275,7 @@ encrypt_railfence:
 	
 	# Store the length in the register
 	move 	$s1, $v0
+	addi 	$s1, $s1, -1 			# decrememnt the length variable
 
 	# Clear temporary registers
 	li 		$t1, 0
@@ -231,13 +358,14 @@ encrypt_railfence:
 		move 	$t3, $t5				# if offset is zero, then we use max offset
 
 		encrypt_railfence_offset_not_zero:
-		sub 	$t3, $t5, $t3			# subtract again so the functin uses the appropriate offset first
-		j 		encrypt_railfence_row
+			sub 	$t3, $t5, $t3			# subtract again so the functin uses the appropriate offset first
+			j 		encrypt_railfence_row
 
 		encrypt_railfence_last_row:
 			sb		$00, 0($s2)				# add null character to the end of string
-			la 		$v0, encrypted 			# return the starting address of the enrypted message
+			move 	$v0, $s0 				# return the starting address of the enrypted message
 			jr 		$31 					# exit function
+
 			
 # Decrypt given encrypted message using the railfence algorithm
 #
@@ -364,10 +492,178 @@ decrypt_railfence:
 
 		
 		decrypt_railfence_offset_not_zero:
-		sub 	$t3, $t5, $t3			# subtract again so the functin uses the appropriate offset first
-		j 		decrypt_railfence_row
+			sub 	$t3, $t5, $t3			# subtract again so the functin uses the appropriate offset first
+			j 		decrypt_railfence_row
 
 		decrypt_railfence_last_row:
 			sb		$00, 0($s2)				# add null character to the end of string
-			la 		$v0, decrypted 			# return the starting address of the enrypted message
+			move	$v0, $s0	 			# return the starting address of the enrypted message
 			jr 		$31 					# exit function
+
+# ========================================================================================================= #
+# ========================================== ROT Encryption =============================================== #
+# ========================================================================================================= #
+
+ROT_encrypt:
+
+			# Loop over all characters
+    		move    $t1, $a0    			#$t1:the current address that gets modified
+    		li 		$t2, 0
+
+rot_en1:	lb  	$t0, ($t1)  				#$t0: the current value (char)
+    		beq 	$t0, $t2, out     			# while `$t1 != '\n'
+    		li 		$t3, 64
+    		bge 	$t3, $t0, rot_en2       	# if `$t0 <= 64: jump to rot_en2
+    		li 		$t3, 123
+    		bge 	$t0, $t3, rot_en2       	# if `$t0 >= 123: jump to rot_en2
+    		li 		$t3, 90
+    		bge 	$t3, $t0, big     			# if `$t0 <= 90: jump to big
+    		li 		$t3, 96
+    		bge 	$t3, $t0, rot_en2       	# if `$t0 <= 96: jump to rot_en2
+    		li 		$t3, 122
+    		bge 	$t3,$t0, small    			# if `$t0 <= 122: jump to small
+
+
+rot_en2:	addi 	$t1, $t1, 1  				# $t1++
+    		j rot_en1                			# endwhile 
+
+small:
+    		addi    $t0, -84   					# -97 + 13
+    		rem     $t0, $t0, 26 				# $`t0 %= 26
+    		addi    $t0, 97
+    		sb      $t0, ($t1)
+    		j rot_en2
+
+big:
+    		addi    $t0, -52   					# -65 + 13
+    		rem     $t0, $t0, 26 				# `$t0 %= 26
+    		addi    $t0, 65
+    		sb      $t0, ($t1)
+    		j rot_en2
+
+out:
+			la		$v0, encrypted
+			jr		$31
+
+    		#li      $v0, 4
+    		#syscall             				#Print string "output"
+
+    		#la      $v0, 4
+    		#la      $a0, plain
+    		#syscall             				#Print plain
+    		
+
+
+ROT_decrypt:
+
+    		# Loop over all characters
+    		move    $t1, $a0    			#$t1:the current address that gets modified
+    		li 		$t2, 0
+
+rot_de1:	lb  	$t0, ($t1)  				#t0: the current value (char)
+    		beq 	$t0, $t2, out1     			# while `$t1 != '\n'
+    		li 		$t3, 64
+    		bge 	$t3, $t0, rot_de2       	# if `$t0 <= 64: jump to rot_de2
+    		li 		$t3, 123
+    		bge 	$t0, $t3, rot_de2       	# if `$t0 >= 123: jump to rot_de2
+    		li 		$t3, 90
+    		bge 	$t3, $t0, big1 				# if `$t0 <= 90: jump to big
+    		li 		$t3, 96
+    		bge 	$t3, $t0, rot_de2       	# if `$t0 <= 96: jump to rot_de2
+    		j small1
+
+
+rot_de2:	addi 	$t1, $t1, 1  				# $t1++
+    		j rot_de1                			# /endwhile 
+
+small1:
+    		addi    $t0, -84   					# -97 + 13
+    		rem     $t0, $t0, 26 				# $`t0 %= 26
+    		addi    $t0, 97
+    		sb      $t0, ($t1)
+    		j rot_de2
+
+big1:
+    		addi    $t0, -52   					# -65 + 13
+    		rem     $t0, $t0, 26 				# `$t0 %= 26
+    		addi    $t0, 65
+    		sb      $t0, ($t1)
+    		j rot_de2
+
+out1:
+    		#li      $v0, 4     
+    		#la      $a0, output1
+    		#syscall             				#Print string "output1"
+
+    		#la      $v0, 4
+    		#la      $a0, plain
+    		#syscall             				#Print plain
+
+    		la 		$v0, encrypted
+    		jr      $31
+
+
+XOR_encrypt:
+
+    li      $t2, 0                 # Stop by \n
+    move    $t1, $a0
+    move    $s4, $a1
+
+    # Loop over all characters
+
+en1:
+    lb      $t0, ($t1)  			#$`t0: the current value (char)
+    beq     $t0, $t2, ot     		# while `$t1 != '\n'
+    li      $t3, 122
+    bge     $t3,$t0,en2    			# jump to en2
+
+en2:
+    xor     $t0, $t0, $s4
+    sb      $t0, ($t1)
+    addi    $t1, $t1, 1  			# $t1++
+    j en1                    		# /endwhile 
+
+ot:
+    #li      $v0, 4
+    #la      $a0, output
+    #syscall             		#Print string "output"
+
+    #la      $v0, 4
+    #la      $a0, plain
+    #syscall             		#Print plain
+
+    la      $v0, encrypted
+    jr      $ra
+
+
+XOR_decrypt:
+
+    li      $t2, 0        		# Stop by \n
+    move    $t1, $a0
+    move    $s5, $a1
+
+    # Loop over all characters
+
+de1:
+    lb      $t0, ($t1)  			#$t0: the current value (char)
+    beq     $t0, $t2, ot1     		# while `$t1 != '\n'
+    li      $t3, 122
+    bge     $t3, $t0, de2  			# jump to de2
+
+de2:
+    xor     $t0, $t0, $s5
+    sb      $t0, ($t1)
+    addi    $t1, $t1, 1  			# $t1++
+    j de1                           # /endwhile  
+
+ot1:
+    #li      $v0, 4
+    #la      $a0, output1
+    #syscall             		#Print string "output1"
+
+    #la      $v0, 4
+    #la      $a0, plain
+    #syscall             		#Print encrypted
+
+    la      $v0, encrypted
+    jr      $ra
