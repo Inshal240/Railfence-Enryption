@@ -1,8 +1,17 @@
 .data
 
 prompt_string: 		.asciiz		"Please enter string: "
-prompt_rot_key:		.asciiz		"Enter ROT key: "
-prompt_rail_key:	.asciiz		"Enter Railfence key: "
+prompt_xor_ekey:	.asciiz		"Enter XOR encryption key: "
+prompt_rail_ekey:	.asciiz		"Enter Railfence encryption key: "
+prompt_xor_dkey:	.asciiz		"Enter XOR decryption key: "
+prompt_rail_dkey:	.asciiz		"Enter Railfence decryption key: "
+
+rail_encrypt_msg:	.asciiz		"Railfence Encryption: "
+rail_decrypt_msg:	.asciiz		"Railfence Decryption: "
+rot_encrypt_msg:	.asciiz		"ROT Encryption: "
+rot_decrypt_msg:	.asciiz		"ROT Decryption: "
+xor_encrypt_msg:	.asciiz		"XOR Encryption: "
+xor_decrypt_msg:	.asciiz		"XOR Decryption: "
 
 #test: 	.asciiz		"Defend the east coast"
 
@@ -11,8 +20,10 @@ message: 	.space		128
 encrypted:	.space		128
 decrypted:	.space		128
 
-xor_key: 	.word		4
-rail_key: 	.word		5
+xor_ekey: 	.word		4
+rail_ekey: 	.word		5
+xor_dkey: 	.word		4
+rail_dkey: 	.word		5
 
 .text
 
@@ -31,32 +42,41 @@ main:
 	li 		$v0, 8
 	syscall
 
-	# Print ROT key prompt
-	la 		$a0, prompt_rot_key
+	# Print XOR key prompt
+	la 		$a0, prompt_xor_ekey
 	li 		$v0, 4
 	syscall
 
 	# Get input from user
 	li 		$v0, 5
 	syscall
-	la 		$t0, xor_key
+	la 		$t0, xor_ekey
 	sw 		$v0, 0($t0)
 
 	# Print Railfence key prompt
-	la 		$a0, prompt_rail_key
+	la 		$a0, prompt_rail_ekey
 	li 		$v0, 4
 	syscall
 
 	# Get input from user
 	li 		$v0, 5
 	syscall
-	la 		$t0, rail_key
+	la 		$t0, rail_ekey
 	sw 		$v0, 0($t0)
+
+	# Print linefeed
+	la 		$a0, linefeed
+	li 		$v0, 4
+	syscall
 
 	# ======== Railfence Encryption ======== #
 
+	la 		$a0, rail_encrypt_msg
+	li 		$v0, 4
+	syscall
+
 	la 		$a0, message
-    la      $t0, rail_key
+    la      $t0, rail_ekey
     lw      $a1, 0($t0)
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
@@ -64,7 +84,7 @@ main:
 	lw		$31, 0($sp)				# Load address from the stack
 	addi 	$sp, $sp, 4				# Increment stack pointer to free space
 
-	la 		$a0, encrypted
+	move 	$a0, $v0
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
 	jal 	printline
@@ -72,6 +92,10 @@ main:
 	addi 	$sp, $sp, 4				# Increment stack pointer to free space
 
 	# =========== ROT Encryption =========== #
+
+	la 		$a0, rot_encrypt_msg
+	li 		$v0, 4
+	syscall
 
 	la 		$a0, encrypted
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
@@ -89,8 +113,12 @@ main:
 
 	# =========== XOR Encryption =========== #
 
+	la 		$a0, xor_encrypt_msg
+	li 		$v0, 4
+	syscall
+
     la      $a0, encrypted
-    la      $t0, xor_key
+    la      $t0, xor_ekey
     lw      $a1, 0($t0)
     addi    $sp, $sp, -4            # Decrement stack pointer to make space
     sw      $31, 0($sp)             # Store address in the stack
@@ -105,10 +133,48 @@ main:
     lw      $31, 0($sp)             # Load address from the stack
     addi    $sp, $sp, 4             # Increment stack pointer to free space
 
+	# ============ User Inputs ============= #
+
+	# Print  linefeed
+    la 		$a0, linefeed
+	li 		$v0, 4
+	syscall
+
+	# Get xor decryption key
+	la 		$a0, prompt_xor_dkey
+	li 		$v0, 4
+	syscall
+
+	li 		$v0, 5
+	syscall
+
+	la 		$t0, xor_dkey
+	sw 		$v0, 0($t0)
+
+	# Get railfence decryption key
+	la 		$a0, prompt_rail_dkey
+	li 		$v0, 4
+	syscall
+
+	li 		$v0, 5
+	syscall
+	
+	la 		$t0, rail_dkey
+	sw 		$v0, 0($t0)
+
+	# Print  linefeed
+	la 		$a0, linefeed
+	li 		$v0, 4
+	syscall
+
 	# =========== XOR Decryption =========== #
 
+	la 		$a0, xor_decrypt_msg
+	li 		$v0, 4
+	syscall
+
     la      $a0, encrypted
-    la      $t0, xor_key
+    la      $t0, xor_ekey
     lw      $a1, 0($t0)
     addi    $sp, $sp, -4            # Decrement stack pointer to make space
     sw      $31, 0($sp)             # Store address in the stack
@@ -125,6 +191,10 @@ main:
 
 	# =========== ROT Decryption =========== #
 
+	la 		$a0, rot_decrypt_msg
+	li 		$v0, 4
+	syscall
+
 	la 		$a0, encrypted
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
@@ -140,16 +210,20 @@ main:
 	addi 	$sp, $sp, 4
 
     # ======== Railfence Decryption ======== #
-
-	la 		$a0, encrypted
-	la      $t0, rail_key
-	lw      $a1, 0($t0)
-	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
+	
+	la 		$a0, rail_decrypt_msg
+	li 		$v0, 4
+	syscall
+	
+    la      $a0, encrypted
+    la      $t0, rail_dkey
+    lw      $a1, 0($t0)
+    addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
 	jal 	decrypt_railfence
 	lw		$31, 0($sp)				# Load address from the stack
 	addi 	$sp, $sp, 4				# Increment stack pointer to free space
-	
+
 	move 	$a0, $v0
 	addi 	$sp, $sp, -4			# Decrement stack pointer to make space
 	sw		$31, 0($sp)				# Store address in the stack
@@ -158,7 +232,6 @@ main:
 	addi 	$sp, $sp, 4
 
 	jr 		$31
-
 
 
 # ========================================================================================================= #
@@ -363,7 +436,7 @@ encrypt_railfence:
 
 		encrypt_railfence_last_row:
 			sb		$00, 0($s2)				# add null character to the end of string
-			move 	$v0, $s0 				# return the starting address of the enrypted message
+			la  	$v0, encrypted			# return the starting address of the enrypted message
 			jr 		$31 					# exit function
 
 			
@@ -545,14 +618,6 @@ out:
 			la		$v0, encrypted
 			jr		$31
 
-    		#li      $v0, 4
-    		#syscall             				#Print string "output"
-
-    		#la      $v0, 4
-    		#la      $a0, plain
-    		#syscall             				#Print plain
-    		
-
 
 ROT_decrypt:
 
@@ -591,14 +656,6 @@ big1:
     		j rot_de2
 
 out1:
-    		#li      $v0, 4     
-    		#la      $a0, output1
-    		#syscall             				#Print string "output1"
-
-    		#la      $v0, 4
-    		#la      $a0, plain
-    		#syscall             				#Print plain
-
     		la 		$v0, encrypted
     		jr      $31
 
@@ -624,14 +681,6 @@ en2:
     j en1                    		# /endwhile 
 
 ot:
-    #li      $v0, 4
-    #la      $a0, output
-    #syscall             		#Print string "output"
-
-    #la      $v0, 4
-    #la      $a0, plain
-    #syscall             		#Print plain
-
     la      $v0, encrypted
     jr      $ra
 
@@ -657,13 +706,5 @@ de2:
     j de1                           # /endwhile  
 
 ot1:
-    #li      $v0, 4
-    #la      $a0, output1
-    #syscall             		#Print string "output1"
-
-    #la      $v0, 4
-    #la      $a0, plain
-    #syscall             		#Print encrypted
-
     la      $v0, encrypted
     jr      $ra
